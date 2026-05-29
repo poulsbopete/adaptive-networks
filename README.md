@@ -4,6 +4,8 @@ Simulated router/switch network operations on [otel-demo](https://otel-demo-a563
 
 **Presentation:** [GitHub Pages slides](https://poulsbopete.github.io/adaptive-networks/) (Reveal.js deck — use arrow keys or swipe to navigate)
 
+**Interactive demo:** [Vercel UI](https://github.com/poulsbopete/adaptive-networks/tree/main/web) — inject faults and watch Elastic workflows run (see [`web/README.md`](web/README.md))
+
 ## Architecture
 
 - **Simulator** emits Cisco-style syslog and SNMP-style metrics via OTLP to `logs.otel` (forked to `logs.otel.adaptive-networks`)
