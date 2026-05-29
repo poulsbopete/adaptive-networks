@@ -7,7 +7,7 @@
   <meta name="description" content="AI-assisted network operations demo on Elastic — simulated router/switch faults, Agent Builder RCA, and human-in-the-loop remediation." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.css" />
   <link rel="stylesheet" href="css/theme.css" />
 </head>
@@ -16,32 +16,47 @@
     <div class="slides">
 
       <!-- Title -->
-      <section class="title-slide" data-background-gradient="linear-gradient(135deg, #0b1120 0%, #0f2744 55%, #0b1120 100%)">
-        <p class="badge">Elastic Observability · otel-demo</p>
-        <h1>Adaptive Networks</h1>
-        <p class="subtitle">AI-assisted detection, analysis, and remediation<br />for simulated router &amp; switch incidents</p>
-        <div class="meta-row">
-          <span><strong>Stack</strong> Elasticsearch · Kibana Workflows · Agent Builder</span>
-          <span><strong>Repo</strong> github.com/poulsbopete/adaptive-networks</span>
+      <section class="title-slide" data-background-color="#0b1120">
+        <div class="hero">
+          <p class="badge">Elastic Observability · otel-demo</p>
+          <h1>Adaptive Networks</h1>
+          <div class="title-rule" aria-hidden="true"></div>
+          <p class="subtitle">
+            AI-assisted detection, analysis, and remediation for simulated
+            router &amp; switch incidents — on Elastic Cloud Serverless.
+          </p>
+          <div class="meta-row">
+            <span><strong>Stack</strong> Elasticsearch · Kibana Workflows · Agent Builder</span>
+            <span><strong>Repo</strong> github.com/poulsbopete/adaptive-networks</span>
+            <span><strong>Stream</strong> logs.otel.adaptive-networks</span>
+          </div>
         </div>
       </section>
 
       <!-- Agenda -->
       <section>
         <h2>Agenda</h2>
-        <ul>
-          <li>The operational challenge</li>
-          <li>Solution architecture &amp; data flow</li>
-          <li>Fault catalog &amp; severity model</li>
-          <li>Agent Builder &amp; workflow automation</li>
-          <li>Human-in-the-loop for high-risk changes</li>
-          <li>Live demo walkthrough</li>
-        </ul>
+        <div class="grid-2">
+          <ul>
+            <li>The operational challenge</li>
+            <li>Solution architecture &amp; data flow</li>
+            <li>Fault catalog &amp; severity model</li>
+          </ul>
+          <ul>
+            <li>Agent Builder &amp; workflow automation</li>
+            <li>Human-in-the-loop for high-risk changes</li>
+            <li>Live demo walkthrough</li>
+          </ul>
+        </div>
       </section>
 
       <!-- Challenge -->
-      <section>
+      <section class="section-slide" data-background-color="#0f172a">
         <h2>The Challenge</h2>
+        <p>Network operations teams need faster triage without risky automation on core routing.</p>
+      </section>
+
+      <section>
         <div class="grid-2">
           <div>
             <h3>Network teams face</h3>
@@ -65,15 +80,19 @@
       </section>
 
       <!-- Architecture -->
-      <section>
+      <section class="section-slide" data-background-color="#0f172a">
         <h2>Architecture</h2>
+        <p>OTLP simulator → alerts → Kibana Workflow → Agent Builder → remediation poller.</p>
+      </section>
+
+      <section>
         <div class="diagram">┌─────────────────┐     OTLP      ┌──────────────────────────────────┐
 │ Network         │──────────────▶│ otel-demo (Elastic Cloud)        │
 │ Simulator       │               │  logs.otel.adaptive-networks     │
-│ + Chaos Inject  │               │  + K8s / VPC flow (hybrid)     │
+│ + Chaos Inject  │               │  + K8s / VPC flow (hybrid)       │
 └────────┬────────┘               └───────────────┬──────────────────┘
          │                                        │
-         │ poll                                   │ alert (1 min)
+         │ poll                                   │ alert (~60s)
          ▼                                        ▼
 ┌─────────────────┐               ┌──────────────────────────────────┐
 │ Remediation     │◀── queue ─────│ Kibana Workflow                  │
@@ -81,6 +100,9 @@
 └─────────────────┘               │  → Case + HITL (high severity)   │
                                   │  → Remediation workflow          │
                                   └──────────────────────────────────┘</div>
+        <div class="highlight-box">
+          Alert metadata travels in rule <strong>tags</strong> — channel, error type, severity, and remediation action.
+        </div>
       </section>
 
       <!-- Components -->
@@ -108,8 +130,8 @@
             <p>RCA, hybrid correlation summary, alert attachment, remediation audit trail.</p>
           </div>
           <div class="card">
-            <h3>Remediation queue</h3>
-            <p>Index-backed queue processed by poller — clears simulated fault channels.</p>
+            <h3>NOC dashboard</h3>
+            <p>Vega + ES|QL panels on <code>logs.otel.adaptive-networks</code> — fault KPIs and timelines.</p>
           </div>
         </div>
       </section>
@@ -170,7 +192,7 @@
           <div class="card">
             <h3>Low severity — automated</h3>
             <p>MAC flapping and interface error spikes are contained, well-understood failures.</p>
-            <div class="flow" style="margin-top:1em">
+            <div class="flow">
               <span class="step">Alert</span><span class="arrow">→</span>
               <span class="step">AI RCA</span><span class="arrow">→</span>
               <span class="step">Case</span><span class="arrow">→</span>
@@ -181,11 +203,11 @@
           <div class="card">
             <h3>High severity — human in the loop</h3>
             <p>STP topology changes and BGP session flaps can cause wide outages — require approval.</p>
-            <div class="flow" style="margin-top:1em">
+            <div class="flow">
               <span class="step">Alert</span><span class="arrow">→</span>
               <span class="step">AI RCA</span><span class="arrow">→</span>
               <span class="step">Case</span><span class="arrow">→</span>
-              <span class="step" style="border-color:#fbbf24">waitForInput</span><span class="arrow">→</span>
+              <span class="step step-warn">waitForInput</span><span class="arrow">→</span>
               <span class="step">Remediate</span>
             </div>
           </div>
@@ -195,7 +217,7 @@
       <!-- Workflow detail -->
       <section>
         <h2>Incident Response Workflow</h2>
-        <ol style="font-size:0.62em">
+        <ol style="font-size:0.6em">
           <li><strong>Enrich</strong> — ES|QL pull of recent fault logs from <code>logs.otel.adaptive-networks*</code></li>
           <li><strong>Correlate</strong> — K8s + VPC flow counts from otel-demo namespace</li>
           <li><strong>RCA</strong> — Agent Builder conversation (analysis only, no remediation)</li>
@@ -212,11 +234,11 @@
       <!-- Agent -->
       <section>
         <h2>Agent Builder</h2>
-        <p style="font-size:0.62em;text-align:left"><strong>Agent ID:</strong> <code>adaptive-networks-analyst</code></p>
-        <div class="grid-2" style="margin-top:0.8em">
+        <p style="font-size:0.6em"><strong>Agent ID:</strong> <code>adaptive-networks-analyst</code></p>
+        <div class="grid-2" style="margin-top:0.75em">
           <div>
             <h3>Tools</h3>
-            <ul style="font-size:0.58em">
+            <ul style="font-size:0.56em">
               <li><code>adaptive_networks_log_search</code></li>
               <li><code>adaptive_networks_fault_esql</code></li>
               <li><code>adaptive_networks_hybrid_correlation</code></li>
@@ -226,7 +248,7 @@
           </div>
           <div>
             <h3>Critical guidance</h3>
-            <ul style="font-size:0.58em">
+            <ul style="font-size:0.56em">
               <li>Search log text via <code>body.text</code> — not <code>body</code></li>
               <li>Vendor mnemonics: MAC flap, STP, BGP, interface errors</li>
               <li>Always correlate with otel-demo microservice telemetry</li>
@@ -237,8 +259,12 @@
       </section>
 
       <!-- Demo -->
-      <section>
+      <section class="section-slide" data-background-color="#0f172a">
         <h2>Demo Walkthrough</h2>
+        <p>~10 minutes — low-risk auto path, then high-risk HITL path.</p>
+      </section>
+
+      <section>
         <table>
           <thead>
             <tr><th>Step</th><th>Action</th><th>Expected outcome</th></tr>
@@ -256,8 +282,8 @@
             </tr>
             <tr>
               <td>3</td>
-              <td><code>chaos_inject.py on 1</code></td>
-              <td>Auto RCA → remediation → case closed (~1 min)</td>
+              <td><code>chaos_inject.py on 1</code> or Vercel demo UI</td>
+              <td>Auto RCA → remediation → case closed (~1–2 min)</td>
             </tr>
             <tr>
               <td>4</td>
@@ -276,9 +302,9 @@
       <!-- Live links -->
       <section>
         <h2>Live Environment</h2>
-        <ul style="font-size:0.62em">
+        <ul class="link-list">
           <li><a href="https://otel-demo-a5630c.kb.us-east-1.aws.elastic.cloud/" target="_blank" rel="noopener">Kibana — otel-demo</a></li>
-          <li><a href="https://otel-demo-a5630c.kb.us-east-1.aws.elastic.cloud/app/dashboards#/view/adaptive-networks-noc" target="_blank" rel="noopener">Adaptive Networks NOC dashboard</a></li>
+          <li><a href="https://otel-demo-a5630c.kb.us-east-1.aws.elastic.cloud/app/dashboards#/view/adaptive-networks-noc" target="_blank" rel="noopener">Adaptive Networks NOC dashboard</a> (Vega + ES|QL)</li>
           <li>Agent Builder → <code>adaptive-networks-analyst</code></li>
           <li>Observability → Workflows → <em>Network Incident Response</em></li>
           <li>Observability → Cases (tag: <code>adaptive-networks</code>)</li>
@@ -294,7 +320,7 @@
         <div class="diagram">git clone git@github.com:poulsbopete/adaptive-networks.git
 cd adaptive-networks
 cp .env.example .env          # ES_URL, KIBANA_URL, ES_API_KEY, OTLP_ENDPOINT
-pip install -r requirements.txt
+pip install -r simulator/requirements.txt
 ./scripts/deploy.sh
 python simulator/network_controller.py
 python simulator/remediation_poller.py</div>
@@ -302,15 +328,15 @@ python simulator/remediation_poller.py</div>
       </section>
 
       <!-- Closing -->
-      <section data-background-gradient="linear-gradient(135deg, #0b1120 0%, #134e4a 50%, #0b1120 100%)">
+      <section class="closing-slide" data-background-color="#0b1120">
         <h2>Thank you</h2>
-        <p class="subtitle" style="margin-top:1em">
+        <p class="subtitle">
           Adaptive Networks — intelligent NOC automation on Elastic
         </p>
-        <div class="meta-row" style="justify-content:center;margin-top:2.5em">
+        <div class="meta-row">
           <span><a href="https://github.com/poulsbopete/adaptive-networks" target="_blank" rel="noopener">github.com/poulsbopete/adaptive-networks</a></span>
         </div>
-        <p class="footnote">Press <kbd>F</kbd> for fullscreen · <kbd>→</kbd> to navigate</p>
+        <p class="footnote"><kbd>F</kbd> fullscreen · <kbd>→</kbd> next · <kbd>Esc</kbd> overview</p>
       </section>
 
     </div>
@@ -322,12 +348,12 @@ python simulator/remediation_poller.py</div>
       hash: true,
       slideNumber: "c/t",
       progress: true,
-      center: true,
-      transition: "fade",
+      center: false,
+      transition: "slide",
       backgroundTransition: "fade",
       width: 1280,
       height: 720,
-      margin: 0.08,
+      margin: 0.07,
     });
   </script>
 </body>
