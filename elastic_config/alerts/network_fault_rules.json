@@ -1,0 +1,32 @@
+{
+  "rules": [
+    {
+      "channel": 1,
+      "name": "Adaptive Networks CH01: MAC Address Flapping",
+      "error_type": "SW_MATM-4-MACFLAP_NOTIF",
+      "remediation_action": "clear_mac_table",
+      "severity": "low"
+    },
+    {
+      "channel": 2,
+      "name": "Adaptive Networks CH02: Spanning Tree Topology Change",
+      "error_type": "SPANTREE-2-TOPO_CHANGE",
+      "remediation_action": "reset_spanning_tree",
+      "severity": "high"
+    },
+    {
+      "channel": 3,
+      "name": "Adaptive Networks CH03: BGP Peer Flapping",
+      "error_type": "BGP-3-NOTIFICATION",
+      "remediation_action": "reset_bgp_session",
+      "severity": "high"
+    },
+    {
+      "channel": 4,
+      "name": "Adaptive Networks CH04: Interface Error Spike",
+      "error_type": "INTF-4-INPUTERR-SPIKE",
+      "remediation_action": "bounce_interface",
+      "severity": "low"
+    }
+  ]
+}

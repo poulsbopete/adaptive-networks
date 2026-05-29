@@ -1,0 +1,111 @@
+version: "1"
+name: Adaptive Networks Remediation action
+description: >
+  Execute remediation actions for Adaptive Networks simulated faults.
+  Queues a remediation command for the backend poller to process.
+
+triggers:
+  - type: manual
+
+inputs:
+  - name: error_type
+    type: string
+    required: true
+    description: "Error type to remediate"
+  - name: channel
+    type: number
+    required: true
+    description: "Fault channel being remediated (1-4)"
+  - name: action_type
+    type: string
+    required: true
+    description: "Remediation action to execute"
+  - name: target_service
+    type: string
+    default: "network-controller"
+    description: "Service to target"
+  - name: justification
+    type: string
+    required: true
+    description: "Reason for executing this remediation"
+  - name: dry_run
+    type: boolean
+    default: true
+  - name: case_id
+    type: string
+    default: ""
+    description: "Case ID to close after remediation"
+
+steps:
+  - name: queue_remediation
+    type: elasticsearch.index
+    with:
+      index: "adaptive-networks-remediation-queue"
+      document:
+        channel: "{{ inputs.channel }}"
+        action_type: "{{ inputs.action_type }}"
+        target_service: "{{ inputs.target_service }}"
+        justification: "{{ inputs.justification }}"
+        dry_run: "{{ inputs.dry_run }}"
+        error_type: "{{ inputs.error_type }}"
+        namespace: "adaptive-networks"
+        status: "pending"
+        mission_id: "Adaptive Networks"
+      refresh: wait_for
+
+  - name: log_queued
+    type: console
+    with:
+      message: "Remediation QUEUED for channel {{ inputs.channel }}. Poller will process shortly."
+
+  - name: close_provided_case
+    type: if
+    condition: "inputs.case_id : *"
+    steps:
+      - name: add_comment_to_case
+        type: kibana.request
+        with:
+          method: POST
+          path: "/api/cases/{{ inputs.case_id }}/comments"
+          headers:
+            kbn-xsrf: "true"
+          body:
+            type: "user"
+            comment: |
+              ## Remediation Performed
+
+              - **Action:** {{ inputs.action_type }}
+              - **Target Service:** {{ inputs.target_service }}
+              - **Error Type:** {{ inputs.error_type }}
+              - **Channel:** {{ inputs.channel }}
+              - **Dry Run:** {{ inputs.dry_run }}
+              - **Justification:** {{ inputs.justification }}
+            owner: "observability"
+
+      - name: refetch_case
+        type: kibana.request
+        with:
+          method: GET
+          path: "/api/cases/{{ inputs.case_id }}"
+
+      - name: update_case_closed
+        type: kibana.updateCase
+        with:
+          cases:
+            - id: "{{ steps.refetch_case.output.id }}"
+              version: "{{ steps.refetch_case.output.version }}"
+              status: "closed"
+
+  - name: audit_log
+    type: elasticsearch.index
+    with:
+      index: "adaptive-networks-remediation-audit"
+      document:
+        channel: "{{ inputs.channel }}"
+        action_type: "{{ inputs.action_type }}"
+        error_type: "{{ inputs.error_type }}"
+        dry_run: "{{ inputs.dry_run }}"
+        status: "queued"
+        case_id: "{{ inputs.case_id }}"
+        mission_id: "Adaptive Networks"
+      refresh: wait_for

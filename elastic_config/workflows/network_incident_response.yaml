@@ -1,0 +1,215 @@
+version: "1"
+name: Adaptive Networks Network Incident Response
+enabled: true
+description: >
+  Alert-triggered network incident workflow: enrich context, hybrid correlation
+  with otel-demo K8s/VPC data, Agent Builder RCA, Case creation, HITL gate for
+  high-severity faults (BGP/STP), auto-remediation for low-risk faults.
+
+settings:
+  timeout: 24h
+
+triggers:
+  - type: alert
+
+# tags[0]=namespace tags[1]=error_type tags[2]=remediation_action tags[3]=channel tags[4]=severity
+
+steps:
+  - name: enrich_context
+    type: elasticsearch.esql.query
+    with:
+      query: >
+        FROM logs.otel.adaptive-networks,logs.otel.adaptive-networks.*
+        | WHERE @timestamp > NOW() - 15 MINUTES
+        AND KQL("body.text: \"{{ event.rule.tags[1] }}\" AND severity_text: \"ERROR\"")
+        | SORT @timestamp DESC
+        | LIMIT 10
+      format: json
+
+  - name: count_errors
+    type: elasticsearch.esql.query
+    with:
+      query: >
+        FROM logs.otel.adaptive-networks,logs.otel.adaptive-networks.*
+        | WHERE @timestamp > NOW() - 15 MINUTES
+        AND KQL("body.text: \"{{ event.rule.tags[1] }}\" AND severity_text: \"ERROR\"")
+        | STATS total_errors = COUNT(*)
+      format: json
+
+  - name: hybrid_correlation
+    type: elasticsearch.esql.query
+    with:
+      query: >
+        FROM logs-k8seventsreceiver.otel-default, logs-aws.vpcflow.otel-default, logs-gcp.vpcflow.otel-default
+        | WHERE @timestamp > NOW() - 15 MINUTES
+        | STATS events = COUNT(*) BY data_stream.dataset
+        | SORT events DESC
+        | LIMIT 10
+      format: json
+
+  - name: run_rca
+    type: kibana.request
+    with:
+      method: POST
+      path: "/api/agent_builder/converse"
+      headers:
+        kbn-xsrf: "true"
+      body:
+        agent_id: adaptive-networks-analyst
+        input: >
+          Network incident detected: {{ event.rule.name }}.
+          Error type: {{ event.rule.tags[1] }}.
+          Severity: {{ event.rule.tags[4] }}.
+          Total matching errors (15m): {{ steps.count_errors.output.values[0][0] }}.
+          Hybrid otel-demo correlation (dataset counts): {{ steps.hybrid_correlation.output.values }}.
+          Perform root cause analysis only. Search logs.otel.adaptive-networks* using body.text
+          for the error mnemonic, correlate with otel-demo microservice impact, and provide
+          a structured RCA report. Do NOT execute remediation yet.
+    timeout: 10m
+
+  - name: create_case
+    type: kibana.createCaseDefaultSpace
+    with:
+      title: "{{ event.rule.name }}"
+      description: |
+        [View Agent Conversation](/app/agent_builder/conversations/{{ steps.run_rca.output.conversation_id }})
+
+        ## Hybrid correlation (otel-demo)
+        {{ steps.hybrid_correlation.output.values }}
+
+        ## RCA
+        {{ steps.run_rca.output.response.message }}
+      tags:
+        - "adaptive-networks"
+        - "{{ event.rule.tags[1] }}"
+        - "{{ event.rule.tags[4] }}"
+      severity: "high"
+      owner: "observability"
+      settings:
+        syncAlerts: false
+      connector:
+        id: "none"
+        name: "none"
+        type: ".none"
+        fields: null
+
+  - name: attach_alert_to_case
+    type: kibana.request
+    with:
+      method: POST
+      path: "/api/cases/{{ steps.create_case.output.id }}/comments"
+      headers:
+        kbn-xsrf: "true"
+      body:
+        type: "alert"
+        alertId: "{{ event.alerts[0]._id }}"
+        index: "{{ event.alerts[0]._index }}"
+        rule:
+          id: "{{ event.rule.id }}"
+          name: "{{ event.rule.name }}"
+        owner: "observability"
+
+  - name: high_severity_hitl
+    type: if
+    condition: "${{ event.rule.tags[4] == 'high' }}"
+    steps:
+      - name: hitl_approval
+        type: waitForInput
+        with:
+          message: |
+            ## High-severity network fault — approval required
+
+            **Rule:** {{ event.rule.name }}
+            **Error:** {{ event.rule.tags[1] }}
+            **RCA summary:** See linked Case and Agent Builder conversation.
+
+            Approve to queue remediation ({{ event.rule.tags[2] }}) on channel {{ event.rule.tags[3] }}.
+          schema:
+            type: object
+            properties:
+              approved:
+                type: boolean
+                title: "Approve remediation?"
+              notes:
+                type: string
+                title: "Reviewer notes"
+              justification:
+                type: string
+                title: "Justification for remediation"
+            required:
+              - approved
+
+      - name: attach_hitl_decision
+        type: kibana.request
+        with:
+          method: POST
+          path: "/api/cases/{{ steps.create_case.output.id }}/comments"
+          headers:
+            kbn-xsrf: "true"
+          body:
+            type: "user"
+            comment: |
+              ## Human review
+
+              - **Approved:** {{ steps.hitl_approval.output.approved }}
+              - **Notes:** {{ steps.hitl_approval.output.notes }}
+              - **Justification:** {{ steps.hitl_approval.output.justification }}
+            owner: "observability"
+
+      - name: request_remediation_hitl
+        type: kibana.request
+        if: "steps.hitl_approval.output.approved : true"
+        with:
+          method: POST
+          path: "/api/agent_builder/converse"
+          headers:
+            kbn-xsrf: "true"
+          body:
+            agent_id: adaptive-networks-analyst
+            conversation_id: "{{ steps.run_rca.output.conversation_id }}"
+            input: >
+              Human approved remediation. Execute the Adaptive Networks Remediation action workflow with:
+              - action_type: {{ event.rule.tags[2] }}
+              - channel: {{ event.rule.tags[3] }}
+              - error_type: {{ event.rule.tags[1] }}
+              - case_id: {{ steps.create_case.output.id }}
+              - dry_run: false
+              - justification: {{ steps.hitl_approval.output.justification }}
+        timeout: 10m
+
+  - name: auto_remediate_low
+    type: if
+    condition: "${{ event.rule.tags[4] != 'high' }}"
+    steps:
+      - name: request_remediation_auto
+        type: kibana.request
+        with:
+          method: POST
+          path: "/api/agent_builder/converse"
+          headers:
+            kbn-xsrf: "true"
+          body:
+            agent_id: adaptive-networks-analyst
+            conversation_id: "{{ steps.run_rca.output.conversation_id }}"
+            input: >
+              Low-severity fault — auto-remediate now using the Remediation action workflow with:
+              - action_type: {{ event.rule.tags[2] }}
+              - channel: {{ event.rule.tags[3] }}
+              - error_type: {{ event.rule.tags[1] }}
+              - case_id: {{ steps.create_case.output.id }}
+              - dry_run: false
+              - justification: Automated low-risk remediation triggered by alert rule
+        timeout: 10m
+
+  - name: audit_log
+    type: elasticsearch.index
+    with:
+      index: "adaptive-networks-incident-audit"
+      document:
+        rule_name: "{{ event.rule.name }}"
+        error_type: "{{ event.rule.tags[1] }}"
+        severity: "{{ event.rule.tags[4] }}"
+        total_errors: "{{ steps.count_errors.output.values[0][0] }}"
+        rca_case_created: true
+        mission_id: "Adaptive Networks"
+      refresh: wait_for

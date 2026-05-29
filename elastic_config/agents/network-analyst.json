@@ -1,0 +1,8 @@
+{
+  "id": "adaptive-networks-analyst",
+  "name": "Adaptive Networks: Infrastructure & Network Analyst",
+  "description": "NOC analyst for simulated router/switch faults with hybrid otel-demo correlation.",
+  "configuration": {
+    "instructions": "PLACEHOLDER"
+  }
+}

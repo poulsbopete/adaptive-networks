@@ -1,0 +1,79 @@
+# Adaptive Networks fault channel registry (demo channels 1-4)
+namespace: adaptive-networks
+mission_id: adaptive-networks
+
+channels:
+  1:
+    name: MAC Address Flapping
+    severity: low
+    error_type: SW_MATM-4-MACFLAP_NOTIF
+    sensor_type: mac_table
+    subsystem: network_core
+    remediation_action: clear_mac_table
+    description: MAC address table instability causing port flapping on the switching fabric
+    error_message: >
+      %SW_MATM-4-MACFLAP_NOTIF: Host {mac_address} in vlan {vlan_id}
+      is flapping between port {interface_src} and port {interface_dst},
+      {flap_count} moves in {flap_window}s
+    stack_trace: |
+      switch# show mac address-table notification mac-move
+      VLAN  MAC Address       From Port          To Port            Move Count
+      {vlan_id}   {mac_address}     {interface_src}         {interface_dst}         {flap_count}
+    affected_services:
+      - network-controller
+
+  2:
+    name: Spanning Tree Topology Change
+    severity: high
+    error_type: SPANTREE-2-TOPO_CHANGE
+    sensor_type: stp_state
+    subsystem: network_core
+    remediation_action: reset_spanning_tree
+    description: Rapid spanning tree topology changes destabilizing Layer 2 forwarding
+    error_message: >
+      %SPANTREE-2-TOPO_CHANGE: Topology Change received on VLAN {vlan_id}
+      instance {stp_instance} from bridge {bridge_id} via port {interface},
+      {tc_count} TCN BPDUs in {tc_window}s
+    stack_trace: |
+      switch# show spanning-tree vlan {vlan_id} detail
+      Number of topology changes {tc_count}
+      Last change occurred on port {interface}
+    affected_services:
+      - network-controller
+
+  3:
+    name: BGP Peer Flapping
+    severity: high
+    error_type: BGP-3-NOTIFICATION
+    sensor_type: bgp_session
+    subsystem: network_core
+    remediation_action: reset_bgp_session
+    description: BGP peering session repeatedly transitioning between Established and Idle states
+    error_message: >
+      %BGP-3-NOTIFICATION: Neighbor {bgp_peer_ip} (AS {bgp_peer_as})
+      sent NOTIFICATION {bgp_notification}, {bgp_flap_count} transitions
+      in {bgp_flap_window}s, last state {bgp_last_state}
+    stack_trace: |
+      router# show bgp neighbors {bgp_peer_ip}
+      BGP state = {bgp_last_state}, up for 00:00:03
+      Notification received: {bgp_notification}
+    affected_services:
+      - network-controller
+
+  4:
+    name: Interface Error Spike
+    severity: low
+    error_type: INTF-4-INPUTERR-SPIKE
+    sensor_type: interface_stats
+    subsystem: network_core
+    remediation_action: bounce_interface
+    description: Elevated input/CRC errors on a core switch interface
+    error_message: >
+      %INTF-4-INPUTERR-SPIKE: Interface {interface} input errors {in_errors}
+      crc_errors {crc_errors} threshold exceeded in {error_window}s
+    stack_trace: |
+      switch# show interface {interface}
+      Input errors: {in_errors}, CRC: {crc_errors}
+      Last clearing: never
+    affected_services:
+      - network-controller

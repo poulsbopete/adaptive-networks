@@ -1,0 +1,34 @@
+[
+  {
+    "id": "adaptive_networks_log_search",
+    "type": "index_search",
+    "description": "Search simulated network device logs in logs.otel.adaptive-networks*. CRITICAL: use body.text for log message text, NOT body.",
+    "configuration": {
+      "pattern": "logs.otel.adaptive-networks*"
+    }
+  },
+  {
+    "id": "adaptive_networks_fault_esql",
+    "type": "esql",
+    "description": "Query network fault logs by error mnemonic. Parameter must include wildcards e.g. *BGP-3-NOTIFICATION*. Use body.text NOT body.",
+    "configuration": {
+      "query": "FROM logs.otel.adaptive-networks* | WHERE @timestamp > NOW() - 1 hour AND body.text LIKE ?error_type AND severity_text == \"ERROR\" | SORT @timestamp DESC | LIMIT 50",
+      "params": {
+        "error_type": {
+          "description": "Wildcard pattern for error mnemonic in body.text, e.g. *BGP-3-NOTIFICATION*",
+          "type": "string",
+          "optional": false
+        }
+      }
+    }
+  },
+  {
+    "id": "adaptive_networks_hybrid_correlation",
+    "type": "esql",
+    "description": "Correlate network faults with otel-demo K8s events and VPC flow logs in the last 15 minutes.",
+    "configuration": {
+      "query": "FROM logs-k8seventsreceiver.otel-default, logs-aws.vpcflow.otel-default, logs-gcp.vpcflow.otel-default | WHERE @timestamp > NOW() - 15 minutes | STATS events = COUNT(*) BY data_stream.dataset | SORT events DESC | LIMIT 20",
+      "params": {}
+    }
+  }
+]
