@@ -4,9 +4,19 @@ Interactive demo: pick a simulated network fault, inject OTLP logs to otel-demo,
 
 ## Deploy to Vercel
 
+### Option A (recommended): set Root Directory to `web`
+
 1. Import the repo in [Vercel](https://vercel.com/new)
-2. Set **Root Directory** to `web`
-3. Add environment variables (Project → Settings → Environment Variables):
+2. **Project Settings → General → Root Directory → `web`**
+3. Framework preset: **Next.js** (auto-detected)
+4. Add environment variables (see table below)
+5. Deploy
+
+### Option B: deploy from repo root
+
+If Root Directory is left as `.`, the root [`vercel.json`](../vercel.json) builds the app in `web/` via `npm run build --prefix web`. Do **not** leave a Python `requirements.txt` at the repo root (simulator deps live in [`simulator/requirements.txt`](../simulator/requirements.txt)).
+
+### Environment variables
 
 | Variable | Required | Description |
 |----------|----------|-------------|
@@ -27,6 +37,8 @@ cp .env.example .env.local   # fill in credentials
 npm install
 npm run dev
 ```
+
+Or from repo root: `npm install --prefix web && npm run dev --prefix web`
 
 Open http://localhost:3000
 

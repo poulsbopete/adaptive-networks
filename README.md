@@ -19,7 +19,7 @@ Simulated router/switch network operations on [otel-demo](https://otel-demo-a563
 
 ```bash
 cp .env.example .env   # set ES_URL, KIBANA_URL, ES_API_KEY, OTLP_ENDPOINT
-pip install -r requirements.txt
+pip install -r simulator/requirements.txt
 chmod +x scripts/*.sh simulator/*.py
 
 # Deploy to otel-demo

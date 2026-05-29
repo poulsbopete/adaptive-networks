@@ -1,0 +1,10 @@
+{
+  "name": "adaptive-networks",
+  "private": true,
+  "description": "Adaptive Networks monorepo — Vercel deploys the Next.js app in web/",
+  "scripts": {
+    "build": "npm run build --prefix web",
+    "dev": "npm run dev --prefix web",
+    "install:web": "npm install --prefix web"
+  }
+}
