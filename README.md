@@ -4,7 +4,7 @@ Simulated router/switch network operations on [otel-demo](https://otel-demo-a563
 
 **Presentation:** [GitHub Pages slides](https://poulsbopete.github.io/adaptive-networks/) (Reveal.js deck — use arrow keys or swipe to navigate)
 
-**Interactive demo:** [Vercel UI](https://github.com/poulsbopete/adaptive-networks/tree/main/web) — inject faults and watch Elastic workflows run (see [`web/README.md`](web/README.md))
+**Interactive demo:** Vercel UI — inject faults and watch Elastic workflows run (see [Vercel demo UI](#vercel-demo-ui) below)
 
 ## Architecture
 
@@ -76,12 +76,37 @@ Validate deployment:
 ## Repository layout
 
 ```
+app/                      # Next.js demo UI (Vercel)
+lib/                      # demo API helpers
 channel_registry.yaml     # fault definitions
 simulator/                # OTLP emitter, chaos CLI, remediation poller
 elastic_config/           # workflows, alerts, agent, dashboard
 scripts/deploy.sh         # bootstrap otel-demo
 scripts/validate.sh       # smoke tests
 ```
+
+## Vercel demo UI
+
+Deploy the Next.js app from the **repo root** (default Root Directory `.`).
+
+1. Import the repo in [Vercel](https://vercel.com/new)
+2. Framework preset: **Next.js** (auto-detected from root `package.json`)
+3. Add environment variables:
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `KIBANA_URL` | Yes | e.g. `https://otel-demo-a5630c.kb.us-east-1.aws.elastic.cloud` |
+| `ES_API_KEY` | Yes | Elasticsearch API key (Kibana + ingest) |
+| `OTLP_ENDPOINT` | Yes | e.g. `https://otel-demo-a5630c.ingest.us-east-1.aws.elastic.cloud` |
+| `INCIDENT_WORKFLOW_NAME` | No | Default: `Adaptive Networks Network Incident Response` |
+| `INCIDENT_WORKFLOW_ID` | No | Pin workflow ID if auto-discovery is insufficient |
+| `DEMO_API_SECRET` | No | If set, require `x-demo-secret` header on `/api/inject` |
+
+4. Deploy
+
+Local dev: `npm install && npm run dev` (open http://localhost:3000). Copy demo vars from [`.env.example`](.env.example).
+
+If your Vercel project was previously configured with **Root Directory = `web`**, reset it to `.` (repo root) and redeploy.
 
 ## Environment variables
 
