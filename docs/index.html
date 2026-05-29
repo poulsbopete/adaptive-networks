@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Adaptive Networks | Elastic Observability Demo</title>
+  <meta name="description" content="AI-assisted network operations demo on Elastic — simulated router/switch faults, Agent Builder RCA, and human-in-the-loop remediation." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.css" />
+  <link rel="stylesheet" href="css/theme.css" />
+</head>
+<body>
+  <div class="reveal">
+    <div class="slides">
+
+      <!-- Title -->
+      <section class="title-slide" data-background-gradient="linear-gradient(135deg, #0b1120 0%, #0f2744 55%, #0b1120 100%)">
+        <p class="badge">Elastic Observability · otel-demo</p>
+        <h1>Adaptive Networks</h1>
+        <p class="subtitle">AI-assisted detection, analysis, and remediation<br />for simulated router &amp; switch incidents</p>
+        <div class="meta-row">
+          <span><strong>Stack</strong> Elasticsearch · Kibana Workflows · Agent Builder</span>
+          <span><strong>Repo</strong> github.com/poulsbopete/adaptive-networks</span>
+        </div>
+      </section>
+
+      <!-- Agenda -->
+      <section>
+        <h2>Agenda</h2>
+        <ul>
+          <li>The operational challenge</li>
+          <li>Solution architecture &amp; data flow</li>
+          <li>Fault catalog &amp; severity model</li>
+          <li>Agent Builder &amp; workflow automation</li>
+          <li>Human-in-the-loop for high-risk changes</li>
+          <li>Live demo walkthrough</li>
+        </ul>
+      </section>
+
+      <!-- Challenge -->
+      <section>
+        <h2>The Challenge</h2>
+        <div class="grid-2">
+          <div>
+            <h3>Network teams face</h3>
+            <ul>
+              <li>High-volume syslog &amp; SNMP telemetry</li>
+              <li>Correlating L2/L3 faults with app impact</li>
+              <li>Slow, manual root-cause analysis</li>
+              <li>Risky auto-remediation on core routing</li>
+            </ul>
+          </div>
+          <div>
+            <h3>This demo shows</h3>
+            <ul>
+              <li>Realistic Cisco-style fault injection</li>
+              <li>Elastic alert → workflow → AI RCA</li>
+              <li>Hybrid correlation with otel-demo K8s &amp; VPC flow</li>
+              <li>Policy-driven auto-fix vs. human approval</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- Architecture -->
+      <section>
+        <h2>Architecture</h2>
+        <div class="diagram">┌─────────────────┐     OTLP      ┌──────────────────────────────────┐
+│ Network         │──────────────▶│ otel-demo (Elastic Cloud)        │
+│ Simulator       │               │  logs.otel.adaptive-networks     │
+│ + Chaos Inject  │               │  + K8s / VPC flow (hybrid)     │
+└────────┬────────┘               └───────────────┬──────────────────┘
+         │                                        │
+         │ poll                                   │ alert (1 min)
+         ▼                                        ▼
+┌─────────────────┐               ┌──────────────────────────────────┐
+│ Remediation     │◀── queue ─────│ Kibana Workflow                  │
+│ Poller          │               │  → Agent Builder RCA             │
+└─────────────────┘               │  → Case + HITL (high severity)   │
+                                  │  → Remediation workflow          │
+                                  └──────────────────────────────────┘</div>
+      </section>
+
+      <!-- Components -->
+      <section>
+        <h2>Platform Components</h2>
+        <div class="grid-3">
+          <div class="card">
+            <h3>Simulator</h3>
+            <p>Emits Cisco mnemonics, interface metrics, BGP/STP stats via OTLP ingest.</p>
+          </div>
+          <div class="card">
+            <h3>Agent Builder</h3>
+            <p><code>adaptive-networks-analyst</code> searches logs, runs ES|QL, correlates otel-demo impact.</p>
+          </div>
+          <div class="card">
+            <h3>Workflows</h3>
+            <p>Alert-triggered incident response with optional <code>waitForInput</code> approval gate.</p>
+          </div>
+          <div class="card">
+            <h3>Alert rules</h3>
+            <p>Four rules on <code>body.text</code> ERROR patterns; metadata encoded in rule tags.</p>
+          </div>
+          <div class="card">
+            <h3>Cases</h3>
+            <p>RCA, hybrid correlation summary, alert attachment, remediation audit trail.</p>
+          </div>
+          <div class="card">
+            <h3>Remediation queue</h3>
+            <p>Index-backed queue processed by poller — clears simulated fault channels.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Fault table -->
+      <section>
+        <h2>Fault Catalog</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>CH</th>
+              <th>Fault (syslog mnemonic)</th>
+              <th>Severity</th>
+              <th>Remediation</th>
+              <th>Path</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>01</td>
+              <td><code>SW_MATM-4-MACFLAP_NOTIF</code></td>
+              <td><span class="pill pill-low">Low</span></td>
+              <td><code>clear_mac_table</code></td>
+              <td>Auto after RCA</td>
+            </tr>
+            <tr>
+              <td>02</td>
+              <td><code>SPANTREE-2-TOPO_CHANGE</code></td>
+              <td><span class="pill pill-high">High</span></td>
+              <td><code>reset_spanning_tree</code></td>
+              <td>Human approval</td>
+            </tr>
+            <tr>
+              <td>03</td>
+              <td><code>BGP-3-NOTIFICATION</code></td>
+              <td><span class="pill pill-high">High</span></td>
+              <td><code>reset_bgp_session</code></td>
+              <td>Human approval</td>
+            </tr>
+            <tr>
+              <td>04</td>
+              <td><code>INTF-4-INPUTERR-SPIKE</code></td>
+              <td><span class="pill pill-low">Low</span></td>
+              <td><code>bounce_interface</code></td>
+              <td>Auto after RCA</td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="highlight-box">
+          Hybrid correlation enriches each case with otel-demo K8s events and AWS/GCP VPC flow volume.
+        </div>
+      </section>
+
+      <!-- Severity model -->
+      <section>
+        <h2>Severity Model</h2>
+        <div class="grid-2">
+          <div class="card">
+            <h3>Low severity — automated</h3>
+            <p>MAC flapping and interface error spikes are contained, well-understood failures.</p>
+            <div class="flow" style="margin-top:1em">
+              <span class="step">Alert</span><span class="arrow">→</span>
+              <span class="step">AI RCA</span><span class="arrow">→</span>
+              <span class="step">Case</span><span class="arrow">→</span>
+              <span class="step">Auto remediate</span><span class="arrow">→</span>
+              <span class="step">Close</span>
+            </div>
+          </div>
+          <div class="card">
+            <h3>High severity — human in the loop</h3>
+            <p>STP topology changes and BGP session flaps can cause wide outages — require approval.</p>
+            <div class="flow" style="margin-top:1em">
+              <span class="step">Alert</span><span class="arrow">→</span>
+              <span class="step">AI RCA</span><span class="arrow">→</span>
+              <span class="step">Case</span><span class="arrow">→</span>
+              <span class="step" style="border-color:#fbbf24">waitForInput</span><span class="arrow">→</span>
+              <span class="step">Remediate</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Workflow detail -->
+      <section>
+        <h2>Incident Response Workflow</h2>
+        <ol style="font-size:0.62em">
+          <li><strong>Enrich</strong> — ES|QL pull of recent fault logs from <code>logs.otel.adaptive-networks*</code></li>
+          <li><strong>Correlate</strong> — K8s + VPC flow counts from otel-demo namespace</li>
+          <li><strong>RCA</strong> — Agent Builder conversation (analysis only, no remediation)</li>
+          <li><strong>Case</strong> — Observability case with conversation link &amp; hybrid summary</li>
+          <li><strong>Branch</strong> — severity tag drives auto vs. HITL path</li>
+          <li><strong>Remediate</strong> — agent invokes remediation workflow → queue → poller</li>
+          <li><strong>Audit</strong> — document written to <code>adaptive-networks-incident-audit</code></li>
+        </ol>
+        <div class="highlight-box">
+          Workflow timeout: 24h — paused HITL executions won't stack indefinitely.
+        </div>
+      </section>
+
+      <!-- Agent -->
+      <section>
+        <h2>Agent Builder</h2>
+        <p style="font-size:0.62em;text-align:left"><strong>Agent ID:</strong> <code>adaptive-networks-analyst</code></p>
+        <div class="grid-2" style="margin-top:0.8em">
+          <div>
+            <h3>Tools</h3>
+            <ul style="font-size:0.58em">
+              <li><code>adaptive_networks_log_search</code></li>
+              <li><code>adaptive_networks_fault_esql</code></li>
+              <li><code>adaptive_networks_hybrid_correlation</code></li>
+              <li><code>adaptive_networks_remediation_action</code></li>
+              <li>Platform: Cases, workflow resume/status</li>
+            </ul>
+          </div>
+          <div>
+            <h3>Critical guidance</h3>
+            <ul style="font-size:0.58em">
+              <li>Search log text via <code>body.text</code> — not <code>body</code></li>
+              <li>Vendor mnemonics: MAC flap, STP, BGP, interface errors</li>
+              <li>Always correlate with otel-demo microservice telemetry</li>
+              <li>Remediate only when explicitly instructed</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- Demo -->
+      <section>
+        <h2>Demo Walkthrough</h2>
+        <table>
+          <thead>
+            <tr><th>Step</th><th>Action</th><th>Expected outcome</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>1</td>
+              <td><code>./scripts/deploy.sh</code></td>
+              <td>Agent, workflows, alerts, stream fork on otel-demo</td>
+            </tr>
+            <tr>
+              <td>2</td>
+              <td>Start simulator + remediation poller</td>
+              <td>Baseline telemetry flowing to Elastic</td>
+            </tr>
+            <tr>
+              <td>3</td>
+              <td><code>chaos_inject.py on 1</code></td>
+              <td>Auto RCA → remediation → case closed (~1 min)</td>
+            </tr>
+            <tr>
+              <td>4</td>
+              <td><code>chaos_inject.py on 3</code></td>
+              <td>Workflow pauses at HITL — approve in Kibana UI</td>
+            </tr>
+            <tr>
+              <td>5</td>
+              <td>Review Case + NOC dashboard</td>
+              <td>Hybrid correlation + Agent conversation visible</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <!-- Live links -->
+      <section>
+        <h2>Live Environment</h2>
+        <ul style="font-size:0.62em">
+          <li><a href="https://otel-demo-a5630c.kb.us-east-1.aws.elastic.cloud/" target="_blank" rel="noopener">Kibana — otel-demo</a></li>
+          <li><a href="https://otel-demo-a5630c.kb.us-east-1.aws.elastic.cloud/app/dashboards#/view/adaptive-networks-noc" target="_blank" rel="noopener">Adaptive Networks NOC dashboard</a></li>
+          <li>Agent Builder → <code>adaptive-networks-analyst</code></li>
+          <li>Observability → Workflows → <em>Network Incident Response</em></li>
+          <li>Observability → Cases (tag: <code>adaptive-networks</code>)</li>
+        </ul>
+        <div class="highlight-box">
+          Stream: <code>logs.otel.adaptive-networks</code> · Queue: <code>adaptive-networks-remediation-queue</code>
+        </div>
+      </section>
+
+      <!-- Getting started -->
+      <section>
+        <h2>Getting Started</h2>
+        <div class="diagram">git clone git@github.com:poulsbopete/adaptive-networks.git
+cd adaptive-networks
+cp .env.example .env          # ES_URL, KIBANA_URL, ES_API_KEY, OTLP_ENDPOINT
+pip install -r requirements.txt
+./scripts/deploy.sh
+python simulator/network_controller.py
+python simulator/remediation_poller.py</div>
+        <p class="footnote">Full runbook in README · Validate with <code>./scripts/validate.sh</code></p>
+      </section>
+
+      <!-- Closing -->
+      <section data-background-gradient="linear-gradient(135deg, #0b1120 0%, #134e4a 50%, #0b1120 100%)">
+        <h2>Thank you</h2>
+        <p class="subtitle" style="margin-top:1em">
+          Adaptive Networks — intelligent NOC automation on Elastic
+        </p>
+        <div class="meta-row" style="justify-content:center;margin-top:2.5em">
+          <span><a href="https://github.com/poulsbopete/adaptive-networks" target="_blank" rel="noopener">github.com/poulsbopete/adaptive-networks</a></span>
+        </div>
+        <p class="footnote">Press <kbd>F</kbd> for fullscreen · <kbd>→</kbd> to navigate</p>
+      </section>
+
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.js"></script>
+  <script>
+    Reveal.initialize({
+      hash: true,
+      slideNumber: "c/t",
+      progress: true,
+      center: true,
+      transition: "fade",
+      backgroundTransition: "fade",
+      width: 1280,
+      height: 720,
+      margin: 0.08,
+    });
+  </script>
+</body>
+</html>

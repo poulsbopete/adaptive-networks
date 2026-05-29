@@ -1,0 +1,264 @@
+/**
+ * Adaptive Networks — presentation theme
+ */
+:root {
+  --r-background-color: #0b1120;
+  --r-main-font: "Inter", "Segoe UI", system-ui, sans-serif;
+  --r-heading-font: "Inter", "Segoe UI", system-ui, sans-serif;
+  --r-main-color: #e2e8f0;
+  --r-heading-color: #f8fafc;
+  --r-link-color: #7dd3fc;
+  --r-link-color-hover: #bae6fd;
+  --r-selection-background-color: rgba(125, 211, 252, 0.35);
+  --accent: #00bfb3;
+  --accent-soft: rgba(0, 191, 179, 0.15);
+  --warn: #fbbf24;
+  --danger: #f87171;
+  --muted: #94a3b8;
+  --card: rgba(255, 255, 255, 0.04);
+  --border: rgba(255, 255, 255, 0.08);
+}
+
+.reveal {
+  font-size: 28px;
+  font-weight: 400;
+}
+
+.reveal h1,
+.reveal h2,
+.reveal h3,
+.reveal h4 {
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  text-transform: none;
+}
+
+.reveal h1 {
+  font-size: 2.4em;
+  line-height: 1.1;
+}
+
+.reveal h2 {
+  font-size: 1.55em;
+  color: var(--accent);
+  margin-bottom: 0.6em;
+}
+
+.reveal h3 {
+  font-size: 0.95em;
+  color: #cbd5e1;
+  font-weight: 600;
+}
+
+.reveal .subtitle {
+  color: var(--muted);
+  font-size: 0.72em;
+  margin-top: 0.5em;
+}
+
+.reveal .badge {
+  display: inline-block;
+  padding: 0.15em 0.65em;
+  border-radius: 999px;
+  font-size: 0.45em;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: var(--accent-soft);
+  color: var(--accent);
+  border: 1px solid rgba(0, 191, 179, 0.35);
+  vertical-align: middle;
+  margin-left: 0.5em;
+}
+
+.reveal section.title-slide {
+  text-align: left;
+}
+
+.reveal section.title-slide h1 {
+  margin-bottom: 0.2em;
+}
+
+.reveal .meta-row {
+  display: flex;
+  gap: 1.5em;
+  margin-top: 2em;
+  font-size: 0.55em;
+  color: var(--muted);
+}
+
+.reveal .meta-row span strong {
+  color: #cbd5e1;
+}
+
+.reveal ul {
+  display: block;
+  text-align: left;
+  margin-left: 0;
+}
+
+.reveal li {
+  margin-bottom: 0.45em;
+  line-height: 1.35;
+}
+
+.reveal li::marker {
+  color: var(--accent);
+}
+
+.reveal table {
+  font-size: 0.58em;
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0.5em 0;
+}
+
+.reveal table th,
+.reveal table td {
+  border: 1px solid var(--border);
+  padding: 0.55em 0.75em;
+  text-align: left;
+}
+
+.reveal table th {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.reveal table tr:nth-child(even) td {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.reveal .pill {
+  display: inline-block;
+  padding: 0.1em 0.55em;
+  border-radius: 4px;
+  font-size: 0.85em;
+  font-weight: 600;
+}
+
+.reveal .pill-low {
+  background: rgba(52, 211, 153, 0.15);
+  color: #6ee7b7;
+}
+
+.reveal .pill-high {
+  background: rgba(248, 113, 113, 0.15);
+  color: #fca5a5;
+}
+
+.reveal .grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.2em;
+  align-items: start;
+  text-align: left;
+}
+
+.reveal .grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1em;
+  text-align: left;
+}
+
+.reveal .card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 0.9em 1em;
+  font-size: 0.62em;
+}
+
+.reveal .card h3 {
+  margin-top: 0;
+  color: var(--accent);
+  font-size: 1em;
+}
+
+.reveal .card p {
+  margin: 0.4em 0 0;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.reveal .flow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.35em;
+  font-size: 0.52em;
+  margin: 1em 0;
+}
+
+.reveal .flow .step {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.5em 0.75em;
+  white-space: nowrap;
+}
+
+.reveal .flow .arrow {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.reveal .diagram {
+  font-family: "SF Mono", "Fira Code", monospace;
+  font-size: 0.42em;
+  line-height: 1.45;
+  background: #070d18;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1em 1.2em;
+  text-align: left;
+  color: #a5b4c8;
+  white-space: pre;
+  overflow-x: auto;
+}
+
+.reveal .highlight-box {
+  background: var(--accent-soft);
+  border-left: 4px solid var(--accent);
+  padding: 0.75em 1em;
+  border-radius: 0 8px 8px 0;
+  font-size: 0.62em;
+  text-align: left;
+  margin-top: 0.8em;
+}
+
+.reveal .footnote {
+  position: absolute;
+  bottom: 1.2em;
+  left: 0;
+  right: 0;
+  font-size: 0.42em;
+  color: var(--muted);
+}
+
+.reveal a {
+  color: var(--r-link-color);
+  text-decoration: none;
+  border-bottom: 1px solid rgba(125, 211, 252, 0.3);
+}
+
+.reveal a:hover {
+  color: var(--r-link-color-hover);
+  border-bottom-color: var(--r-link-color-hover);
+}
+
+.reveal .progress span {
+  background: var(--accent);
+}
+
+.reveal .slide-number {
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.reveal .controls {
+  color: var(--accent);
+}

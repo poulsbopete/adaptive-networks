@@ -2,6 +2,8 @@
 
 Simulated router/switch network operations on [otel-demo](https://otel-demo-a5630c.kb.us-east-1.aws.elastic.cloud/) with Elastic Agent Builder, Kibana Workflows, and human-in-the-loop remediation for high-severity faults.
 
+**Presentation:** [GitHub Pages slides](https://poulsbopete.github.io/adaptive-networks/) (Reveal.js deck — use arrow keys or swipe to navigate)
+
 ## Architecture
 
 - **Simulator** emits Cisco-style syslog and SNMP-style metrics via OTLP to `logs.otel` (forked to `logs.otel.adaptive-networks`)
