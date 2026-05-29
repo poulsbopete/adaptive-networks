@@ -62,7 +62,7 @@ def _time_series_spec(title: str, query: str, *, area: bool = False, color_field
     mark_type = "area" if area and not color_field else "line"
     spec["mark"] = {
         "type": mark_type,
-        "point": False,
+        "point": {"filled": True, "size": 60},
         "tooltip": True,
         "strokeWidth": 2,
         "opacity": 0.85 if area else 1,
@@ -88,9 +88,9 @@ def _fault_logs_table_spec() -> dict:
         f"FROM {FAULT_STREAM} "
         f"| WHERE @timestamp >= ?_tstart AND @timestamp <= ?_tend "
         f'AND severity_text == "ERROR" AND body.text LIKE "*-*" '
-        f"| EVAL log_msg = TO_STRING(body.text), "
-        f"service_name = TO_STRING(service.name), "
-        f'severity = TO_STRING(severity_text), event_time = @timestamp '
+        f"| EVAL log_msg = COALESCE(TO_STRING(body.text), TO_STRING(message), \"(no message)\"), "
+        f"service_name = COALESCE(TO_STRING(service.name), \"unknown\"), "
+        f'severity = COALESCE(TO_STRING(severity_text), "ERROR"), event_time = @timestamp '
         f"| SORT event_time DESC "
         f"| LIMIT 25"
     )
@@ -111,9 +111,11 @@ def _fault_logs_table_spec() -> dict:
                         "type": "formula",
                         "as": "line",
                         "expr": (
-                            "timeFormat(toDate(datum.event_time), '%Y-%m-%d %H:%M:%S')"
-                            " + '  [' + datum.severity + ']  '"
-                            " + slice(datum.log_msg, 0, 140)"
+                            "isValid(datum.event_time)"
+                            " ? timeFormat(toDate(datum.event_time), '%Y-%m-%d %H:%M:%S')"
+                            " : '(unknown time)'"
+                            " + '  [' + (datum.severity || 'ERROR') + ']  '"
+                            " + slice(datum.log_msg || '(no message)', 0, 140)"
                         ),
                     },
                 ],
