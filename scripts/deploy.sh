@@ -303,7 +303,7 @@ for r in rules:
         "query": {
             "bool": {
                 "filter": [
-                    {"range": {"@timestamp": {"gte": "now-1m"}}},
+                    {"term": {"service.name": "network-controller"}},
                     {"match_phrase": {"body.text": r["error_type"]}},
                     {"term": {"severity_text": "ERROR"}},
                 ]
@@ -324,8 +324,9 @@ for r in rules:
             "threshold": [0],
             "thresholdComparator": ">",
             "size": 100,
-            "timeWindowSize": 1,
+            "timeWindowSize": 5,
             "timeWindowUnit": "m",
+            "excludeHitsFromPreviousRun": False,
         },
         "actions": [{
             "group": "query matched",

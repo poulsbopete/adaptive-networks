@@ -61,10 +61,10 @@ function buildResource() {
   };
 }
 
-function buildLogRecord(channel: number, message: string) {
+function buildLogRecord(channel: number, message: string, offsetMs = 0) {
   const ch = FAULT_CHANNELS.find((c) => c.channel === channel)!;
   return {
-    timeUnixNano: String(Date.now() * 1_000_000),
+    timeUnixNano: String((Date.now() + offsetMs) * 1_000_000),
     severityText: "ERROR",
     severityNumber: 17,
     body: { stringValue: message },
@@ -89,7 +89,9 @@ export async function injectFaultLogs(channel: number, burst = 6) {
   if (!ch) throw new Error(`Unknown channel ${channel}`);
 
   const message = faultMessage(channel);
-  const records = Array.from({ length: burst }, () => buildLogRecord(channel, message));
+  const records = Array.from({ length: burst }, (_, i) =>
+    buildLogRecord(channel, message, i)
+  );
   const payload = {
     resourceLogs: [
       {

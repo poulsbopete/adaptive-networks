@@ -69,6 +69,9 @@ export default function DemoPage() {
         const executions = await pollExecutions(injectedAt);
         if (!executions.length) {
           setPhase("waiting");
+          setMessage(
+            `Fault logs ingested. Waiting for Kibana alert rule evaluation (runs every ~60s, 5m lookback window)… (${Math.max(0, pollCount) * 3}s elapsed)`
+          );
           return;
         }
 

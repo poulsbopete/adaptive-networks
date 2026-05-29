@@ -17,7 +17,8 @@ export async function GET(request: Request) {
 
     if (since) {
       const sinceMs = Date.parse(since);
-      results = results.filter((r) => r.startedAt && Date.parse(r.startedAt) >= sinceMs - 5000);
+      // Allow for alert rule schedule (1m) plus workflow startup latency.
+      results = results.filter((r) => r.startedAt && Date.parse(r.startedAt) >= sinceMs - 120_000);
     }
 
     const enriched = await Promise.all(

@@ -55,7 +55,18 @@ export async function resolveIncidentWorkflowId(): Promise<string> {
   if (!matches.length) {
     throw new Error(`Workflow not found: ${INCIDENT_WORKFLOW_NAME}`);
   }
-  return matches[matches.length - 1].id;
+
+  const prefixed = matches.filter((w) => w.id.startsWith("adaptive-networks-network-incident-response"));
+  const pool = prefixed.length ? prefixed : matches;
+  pool.sort((a, b) => {
+    const suffix = (id: string) => {
+      const part = id.split("-").pop() ?? "0";
+      const n = Number(part);
+      return Number.isFinite(n) ? n : 0;
+    };
+    return suffix(a.id) - suffix(b.id);
+  });
+  return pool[pool.length - 1].id;
 }
 
 export async function listWorkflowExecutions(
