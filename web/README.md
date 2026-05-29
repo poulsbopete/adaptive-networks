@@ -29,6 +29,8 @@ If Root Directory is left as `.`, the root [`vercel.json`](../vercel.json) build
 
 4. Deploy — Vercel runs `npm run build` in `web/`
 
+Open **Adaptive Networks NOC** in Kibana for Vega/ES|QL panels on `logs.otel.adaptive-networks` (see [`scripts/generate_noc_dashboard.py`](../scripts/generate_noc_dashboard.py)).
+
 ## Local development
 
 ```bash

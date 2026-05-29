@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Import Adaptive Networks NOC dashboard (with Lens panels) into Kibana."""
+"""Import Adaptive Networks NOC dashboard (Vega panels via saved objects API) into Kibana."""
 
 from __future__ import annotations
 

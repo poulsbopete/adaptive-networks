@@ -1,295 +1,261 @@
 #!/usr/bin/env python3
-"""Generate Adaptive Networks NOC dashboard NDJSON with Lens panels (Kibana 9.4+)."""
+"""Generate Adaptive Networks NOC dashboard NDJSON with Vega panels (Kibana 9.4+)."""
 
 from __future__ import annotations
 
 import json
-import uuid
 
-DATA_VIEW = "logs*"
 NAMESPACE = "adaptive-networks"
-FAULT_KQL = (
-    'severity_text: "ERROR" AND body.text: (*SW_MATM* OR *SPANTREE* OR *BGP-3* OR *INTF-4*)'
+DASHBOARD_ID = "adaptive-networks-noc"
+LOGS_INDEX = "logs*"
+FAULT_STREAM = f"logs.otel.{NAMESPACE}, logs.otel.{NAMESPACE}.*"
+
+FAULT_FILTER = (
+    'severity_text == "ERROR" AND ('
+    'body.text LIKE "*SW_MATM*" OR body.text LIKE "*SPANTREE*" OR '
+    'body.text LIKE "*BGP-3*" OR body.text LIKE "*INTF-4*")'
 )
-NETWORK_KQL = 'service.name: "network-controller"'
+SERVICE_FILTER = 'service.name == "network-controller"'
+
+VEGA_CONFIG = {
+    "axis": {"domainColor": "#444", "tickColor": "#444"},
+    "view": {"stroke": None},
+}
 
 
-def _uid() -> str:
-    return str(uuid.uuid4())
-
-
-def _ref(layer_id: str) -> dict:
-    return {
-        "id": DATA_VIEW,
-        "name": f"indexpattern-datasource-layer-{layer_id}",
-        "type": "index-pattern",
-    }
-
-
-def _layer(layer_id: str, column_order: list[str], columns: dict) -> dict:
-    return {
-        layer_id: {
-            "columnOrder": column_order,
-            "columns": columns,
-            "ignoreGlobalFilters": False,
-            "incompleteColumns": {},
-            "indexPatternId": DATA_VIEW,
-            "sampling": 1,
-        }
-    }
-
-
-def _state(layers: dict, visualization: dict, query: str = "") -> dict:
-    return {
-        "adHocDataViews": {},
-        "datasourceStates": {
-            "formBased": {"layers": layers},
-            "indexpattern": {"layers": {}},
-            "textBased": {"layers": {}},
+def _vega_lite(title: str, query: str, *, subtitle: str = "", context: bool = True) -> dict:
+    spec: dict = {
+        "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
+        "title": {"text": title, "subtitle": subtitle, "anchor": "start"},
+        "autosize": {"type": "fit", "contains": "padding"},
+        "config": VEGA_CONFIG,
+        "data": {
+            "url": {
+                "%type%": "esql",
+                "%timefield%": "@timestamp",
+                "query": query,
+            }
         },
-        "filters": [],
-        "internalReferences": [],
-        "query": {"language": "kuery", "query": query},
-        "visualization": visualization,
     }
+    if context:
+        spec["data"]["url"]["%context%"] = True
+    return spec
 
 
-def _count_col(label: str, kql_filter: str | None = None) -> dict:
-    col = {
-        "customLabel": True,
-        "dataType": "number",
-        "isBucketed": False,
-        "label": label,
-        "operationType": "count",
-        "params": {"emptyAsNull": True},
-        "scale": "ratio",
-        "sourceField": "___records___",
+def _metric_spec(title: str, query: str, subtitle: str = "") -> dict:
+    spec = _vega_lite(title, query, subtitle=subtitle)
+    spec["mark"] = {
+        "type": "text",
+        "fontSize": 36,
+        "fontWeight": "bold",
+        "color": "#6092C0",
+        "baseline": "middle",
     }
-    if kql_filter:
-        col["filter"] = {"language": "kuery", "query": kql_filter}
-    return col
+    spec["encoding"] = {
+        "text": {"field": "count", "type": "quantitative", "format": ",.0f"}
+    }
+    return spec
 
 
-def _terms_col(field: str, label: str, size: int = 8, order_col: str | None = None) -> dict:
-    return {
-        "customLabel": True,
-        "dataType": "string",
-        "isBucketed": True,
-        "label": label,
-        "operationType": "terms",
-        "params": {
-            "size": size,
-            "orderDirection": "desc",
-            "orderBy": {"columnId": order_col, "type": "column"} if order_col else {"type": "alphabetical"},
-            "missingBucket": False,
-            "otherBucket": False,
+def _time_series_spec(title: str, query: str, *, area: bool = False, color_field: str | None = None) -> dict:
+    spec = _vega_lite(title, query)
+    mark_type = "area" if area and not color_field else "line"
+    spec["mark"] = {
+        "type": mark_type,
+        "point": False,
+        "tooltip": True,
+        "strokeWidth": 2,
+        "opacity": 0.85 if area else 1,
+    }
+    encoding: dict = {
+        "x": {
+            "field": "bucket",
+            "type": "temporal",
+            "title": None,
+            "axis": {"labelAngle": 0, "tickCount": 8},
         },
-        "scale": "ordinal",
-        "sourceField": field,
+        "y": {"field": "count", "type": "quantitative", "title": "Count"},
     }
+    if color_field:
+        spec["mark"]["type"] = "line"
+        encoding["color"] = {"field": color_field, "type": "nominal", "title": None}
+    spec["encoding"] = encoding
+    return spec
 
 
-def _date_hist_col(interval: str = "auto") -> dict:
+def _fault_logs_table_spec() -> dict:
+    query = (
+        f"FROM {FAULT_STREAM} "
+        f"| WHERE @timestamp >= ?_tstart AND @timestamp <= ?_tend "
+        f'AND severity_text == "ERROR" AND body.text LIKE "*-*" '
+        f"| EVAL log_msg = TO_STRING(body.text), "
+        f"service_name = TO_STRING(service.name), "
+        f'severity = TO_STRING(severity_text), event_time = @timestamp '
+        f"| SORT event_time DESC "
+        f"| LIMIT 25"
+    )
     return {
-        "customLabel": True,
-        "dataType": "date",
-        "isBucketed": True,
-        "label": "@timestamp",
-        "operationType": "date_histogram",
-        "params": {"interval": interval},
-        "scale": "interval",
-        "sourceField": "@timestamp",
-    }
-
-
-def _metric_panel(panel_id: str, grid: dict, title: str, query: str, count_filter: str | None, subtitle: str = "") -> dict:
-    lid, cid = _uid(), _uid()
-    layers = _layer(lid, [cid], {cid: _count_col("Count", count_filter)})
-    vis = {
-        "layerId": lid,
-        "layerType": "data",
-        "metricAccessor": cid,
-        "subtitle": subtitle,
-    }
-    return {
-        "embeddableConfig": {
-            "attributes": {
-                "references": [_ref(lid)],
-                "state": _state(layers, vis, query),
-                "title": title,
-                "type": "lens",
-                "visualizationType": "lnsMetric",
-                "version": 2,
-            },
-            "enhancements": {"dynamicActions": {"events": []}},
-            "hidePanelTitles": False,
-            "syncColors": False,
-            "syncCursor": True,
-            "syncTooltips": False,
-        },
-        "gridData": grid,
-        "panelIndex": panel_id,
-        "title": title,
-        "type": "lens",
-    }
-
-
-def _xy_panel(panel_id: str, grid: dict, title: str, query: str, split_field: str | None = None) -> dict:
-    lid = _uid()
-    date_id, count_id = _uid(), _uid()
-    columns = {date_id: _date_hist_col(), count_id: _count_col("Count")}
-    column_order = [date_id, count_id]
-
-    if split_field:
-        split_id = _uid()
-        columns[split_id] = _terms_col(split_field, split_field, size=6, order_col=count_id)
-        column_order = [date_id, split_id, count_id]
-
-    layers = _layer(lid, column_order, columns)
-    accessors = [count_id] if not split_field else [split_id, count_id]
-    vis = {
-        "axisTitlesVisibilitySettings": {"x": True, "yLeft": True, "yRight": True},
-        "fittingFunction": "None",
-        "gridlinesVisibilitySettings": {"x": True, "yLeft": True, "yRight": True},
-        "labelsOrientation": {"x": 0, "yLeft": 0, "yRight": 0},
-        "layers": [
+        "$schema": "https://vega.github.io/schema/vega/v6.json",
+        "title": "Recent network fault logs",
+        "autosize": {"type": "fit", "contains": "padding"},
+        "padding": 8,
+        "config": VEGA_CONFIG,
+        "data": [
             {
-                "accessors": accessors,
-                "layerId": lid,
-                "layerType": "data",
-                "position": "top",
-                "seriesType": "line" if split_field else "area_stacked",
-                "showGridlines": False,
-                "xAccessor": date_id,
+                "name": "logs",
+                "url": {"%type%": "esql", "%timefield%": "@timestamp", "query": query},
+                "format": {"type": "json", "property": "values"},
+                "transform": [
+                    {"type": "window", "ops": ["row_number"], "as": ["row"]},
+                    {
+                        "type": "formula",
+                        "as": "line",
+                        "expr": (
+                            "timeFormat(toDate(datum.event_time), '%Y-%m-%d %H:%M:%S')"
+                            " + '  [' + datum.severity + ']  '"
+                            " + slice(datum.log_msg, 0, 140)"
+                        ),
+                    },
+                ],
             }
         ],
-        "legend": {"isVisible": True, "position": "right"},
-        "preferredSeriesType": "line" if split_field else "area_stacked",
-        "tickLabelsVisibilitySettings": {"x": True, "yLeft": True, "yRight": True},
-        "valueLabels": "hide",
+        "scales": [
+            {
+                "name": "y",
+                "type": "band",
+                "domain": {"data": "logs", "field": "row"},
+                "range": "height",
+                "padding": 0.05,
+            }
+        ],
+        "marks": [
+            {
+                "type": "text",
+                "from": {"data": "logs"},
+                "encode": {
+                    "update": {
+                        "x": {"value": 4},
+                        "y": {"scale": "y", "field": "row", "band": 0.5},
+                        "text": {"field": "line"},
+                        "fontSize": {"value": 11},
+                        "fill": {"value": "#cccccc"},
+                    }
+                },
+            }
+        ],
     }
-    return {
-        "embeddableConfig": {
-            "attributes": {
-                "references": [_ref(lid)],
-                "state": _state(layers, vis, query),
-                "title": title,
-                "type": "lens",
-                "visualizationType": "lnsXY",
-                "version": 2,
-            },
-            "enhancements": {"dynamicActions": {"events": []}},
-            "hidePanelTitles": False,
-            "syncColors": False,
-            "syncCursor": True,
-            "syncTooltips": False,
-        },
-        "gridData": grid,
-        "panelIndex": panel_id,
-        "title": title,
-        "type": "lens",
-    }
 
 
-def _fault_logs_table_panel(panel_id: str, grid: dict) -> dict:
-    lid = _uid()
-    adhoc_id = _uid()
-    esql_query = (
-        f"FROM logs.otel.{NAMESPACE}, logs.otel.{NAMESPACE}.* "
-        f'| WHERE severity_text == "ERROR" AND body.text LIKE "*-*" '
-        f"| KEEP @timestamp, body.text, service.name, severity_text "
-        f"| SORT @timestamp DESC "
-        f"| LIMIT 50"
-    )
-
-    def esql_col(field: str, es_type: str, col_type: str) -> dict:
-        return {
-            "columnId": _uid(),
-            "fieldName": field,
-            "label": field,
-            "customLabel": False,
-            "meta": {"esType": es_type, "type": col_type},
-        }
-
-    columns = [
-        esql_col("@timestamp", "date", "date"),
-        esql_col("body.text", "text", "string"),
-        esql_col("service.name", "keyword", "string"),
-        esql_col("severity_text", "keyword", "string"),
+def _visualizations() -> list[tuple[str, str, dict]]:
+    time_where = "@timestamp >= ?_tstart AND @timestamp <= ?_tend"
+    return [
+        (
+            "adaptive-networks-noc-fault-errors",
+            "Network fault errors",
+            _metric_spec(
+                "Network fault errors",
+                f"FROM {LOGS_INDEX} | WHERE {time_where} AND {SERVICE_FILTER} AND {FAULT_FILTER} "
+                f"| STATS count = COUNT(*)",
+                "Cisco-style fault signatures",
+            ),
+        ),
+        (
+            "adaptive-networks-noc-controller-logs",
+            "Network controller logs",
+            _metric_spec(
+                "Network controller logs",
+                f"FROM {LOGS_INDEX} | WHERE {time_where} AND {SERVICE_FILTER} "
+                f"| STATS count = COUNT(*)",
+                "All severities",
+            ),
+        ),
+        (
+            "adaptive-networks-noc-error-severity",
+            "ERROR severity",
+            _metric_spec(
+                "ERROR severity",
+                f"FROM {LOGS_INDEX} | WHERE {time_where} AND {SERVICE_FILTER} "
+                f'AND severity_text == "ERROR" | STATS count = COUNT(*)',
+                "network-controller",
+            ),
+        ),
+        (
+            "adaptive-networks-noc-info-logs",
+            "Baseline INFO logs",
+            _metric_spec(
+                "Baseline INFO logs",
+                f"FROM {LOGS_INDEX} | WHERE {time_where} AND {SERVICE_FILTER} "
+                f'AND severity_text == "INFO" | STATS count = COUNT(*)',
+                "Polling telemetry",
+            ),
+        ),
+        (
+            "adaptive-networks-noc-fault-timeline",
+            "Fault errors over time",
+            _time_series_spec(
+                "Fault errors over time",
+                f"FROM {LOGS_INDEX} | WHERE {time_where} AND {SERVICE_FILTER} AND {FAULT_FILTER} "
+                f"| STATS count = COUNT(*) BY bucket = DATE_TRUNC(5 minutes, @timestamp) "
+                f"| SORT bucket ASC",
+                area=True,
+            ),
+        ),
+        (
+            "adaptive-networks-noc-severity-timeline",
+            "Logs by severity",
+            _time_series_spec(
+                "Logs by severity",
+                f"FROM {LOGS_INDEX} | WHERE {time_where} AND {SERVICE_FILTER} "
+                f"| STATS count = COUNT(*) BY bucket = DATE_TRUNC(5 minutes, @timestamp), severity_text "
+                f"| RENAME severity_text AS severity | SORT bucket ASC",
+                color_field="severity",
+            ),
+        ),
+        (
+            "adaptive-networks-noc-fault-logs",
+            "Recent network fault logs",
+            _fault_logs_table_spec(),
+        ),
     ]
 
-    state = {
-        "adHocDataViews": {
-            adhoc_id: {
-                "allowHidden": False,
-                "allowNoIndex": False,
-                "fieldFormats": {},
-                "id": adhoc_id,
-                "name": DATA_VIEW,
-                "runtimeFieldMap": {},
-                "sourceFilters": [],
-                "timeFieldName": "@timestamp",
-                "title": DATA_VIEW,
-                "type": "esql",
-            }
-        },
-        "datasourceStates": {
-            "textBased": {
-                "layers": {
-                    lid: {
-                        "index": adhoc_id,
-                        "query": {"esql": esql_query},
-                        "columns": columns,
-                        "timeField": "@timestamp",
-                    }
-                }
-            }
-        },
-        "filters": [],
-        "internalReferences": [
-            {
-                "id": adhoc_id,
-                "name": f"textBasedLanguages-datasource-layer-{lid}",
-                "type": "index-pattern",
-            }
-        ],
-        "query": {"esql": esql_query},
-        "visualization": {
-            "layerId": lid,
-            "layerType": "data",
-            "columns": [{"columnId": c["columnId"]} for c in columns],
-            "paging": {"enabled": True, "size": 10},
-            "sorting": {"columnId": columns[0]["columnId"], "direction": "desc"},
-        },
-    }
 
+def _build_vis_object(viz_id: str, title: str, spec: dict) -> dict:
+    spec_string = json.dumps(spec, indent=2)
+    vis_state = {
+        "title": title,
+        "type": "vega",
+        "params": {"spec": spec_string},
+        "aggs": [],
+    }
     return {
-        "embeddableConfig": {
-            "attributes": {
-                "references": [],
-                "state": state,
-                "title": "Recent network fault logs",
-                "type": "lens",
-                "visualizationType": "lnsDatatable",
-                "version": 2,
-            },
-            "enhancements": {"dynamicActions": {"events": []}},
-            "hidePanelTitles": False,
-            "syncColors": False,
-            "syncCursor": True,
-            "syncTooltips": False,
+        "attributes": {
+            "description": "",
+            "kibanaSavedObjectMeta": {"searchSourceJSON": "{}"},
+            "title": title,
+            "uiStateJSON": "{}",
+            "visState": json.dumps(vis_state),
         },
-        "gridData": grid,
-        "panelIndex": panel_id,
-        "title": "Recent network fault logs",
-        "type": "lens",
+        "coreMigrationVersion": "8.8.0",
+        "id": viz_id,
+        "managed": False,
+        "references": [],
+        "type": "visualization",
+        "typeMigrationVersion": "8.5.0",
     }
 
 
-def generate_dashboard_ndjson() -> str:
-    panels = []
+def _dashboard_panels() -> tuple[list[dict], list[dict]]:
+    layout = [
+        ("adaptive-networks-noc-fault-errors", 0, 2, 12, 6),
+        ("adaptive-networks-noc-controller-logs", 12, 2, 12, 6),
+        ("adaptive-networks-noc-error-severity", 24, 2, 12, 6),
+        ("adaptive-networks-noc-info-logs", 36, 2, 12, 6),
+        ("adaptive-networks-noc-fault-timeline", 0, 8, 24, 12),
+        ("adaptive-networks-noc-severity-timeline", 24, 8, 24, 12),
+        ("adaptive-networks-noc-fault-logs", 0, 20, 48, 14),
+    ]
 
-    panels.append(
+    panels: list[dict] = [
         {
             "type": "DASHBOARD_MARKDOWN",
             "embeddableConfig": {
@@ -303,109 +269,65 @@ def generate_dashboard_ndjson() -> str:
             "panelIndex": "p_intro",
             "gridData": {"h": 2, "i": "p_intro", "w": 48, "x": 0, "y": 0},
         }
-    )
+    ]
+    references: list[dict] = []
 
-    panels.append(
-        _metric_panel(
-            "p_errors",
-            {"h": 6, "i": "p_errors", "w": 12, "x": 0, "y": 2},
-            "Network fault errors",
-            NETWORK_KQL,
-            FAULT_KQL,
-            "Last 7 days",
+    for index, (viz_id, x, y, w, h) in enumerate(layout):
+        panel_index = str(index + 1)
+        panel_ref = f"panel_{index}"
+        panels.append(
+            {
+                "embeddableConfig": {"hidePanelTitles": True},
+                "gridData": {"x": x, "y": y, "w": w, "h": h, "i": panel_index},
+                "panelIndex": panel_index,
+                "panelRefName": panel_ref,
+                "type": "visualization",
+            }
         )
-    )
-    panels.append(
-        _metric_panel(
-            "p_logs",
-            {"h": 6, "i": "p_logs", "w": 12, "x": 12, "y": 2},
-            "Network controller logs",
-            NETWORK_KQL,
-            None,
-            "All severities",
-        )
-    )
-    panels.append(
-        _metric_panel(
-            "p_error_rate",
-            {"h": 6, "i": "p_error_rate", "w": 12, "x": 24, "y": 2},
-            "ERROR severity",
-            NETWORK_KQL,
-            'severity_text: "ERROR"',
-            "network-controller",
-        )
-    )
-    panels.append(
-        _metric_panel(
-            "p_info",
-            {"h": 6, "i": "p_info", "w": 12, "x": 36, "y": 2},
-            "Baseline INFO logs",
-            NETWORK_KQL,
-            'severity_text: "INFO"',
-            "Polling telemetry",
-        )
-    )
+        references.append({"id": viz_id, "name": panel_ref, "type": "visualization"})
 
-    panels.append(
-        _xy_panel(
-            "p_fault_timeline",
-            {"h": 12, "i": "p_fault_timeline", "w": 24, "x": 0, "y": 8},
-            "Fault errors over time",
-            f"{NETWORK_KQL} AND {FAULT_KQL}",
-        )
-    )
-    panels.append(
-        _xy_panel(
-            "p_severity_timeline",
-            {"h": 12, "i": "p_severity_timeline", "w": 24, "x": 24, "y": 8},
-            "Logs by severity",
-            NETWORK_KQL,
-            "severity_text",
-        )
-    )
+    return panels, references
 
-    panels.append(
-        _fault_logs_table_panel(
-            "p_fault_table",
-            {"h": 14, "i": "p_fault_table", "w": 48, "x": 0, "y": 20},
-        )
-    )
 
-    refs = []
-    seen = set()
-    for panel in panels:
-        attrs = panel.get("embeddableConfig", {}).get("attributes", {})
-        for ref in attrs.get("references", []):
-            if ref["name"] not in seen:
-                refs.append(ref)
-                seen.add(ref["name"])
+def generate_dashboard_ndjson() -> str:
+    lines: list[str] = []
 
+    for viz_id, title, spec in _visualizations():
+        lines.append(json.dumps(_build_vis_object(viz_id, title, spec), separators=(",", ":")))
+
+    panels, references = _dashboard_panels()
     dashboard = {
         "attributes": {
             "description": "Network operations view for simulated router/switch faults on otel-demo",
             "kibanaSavedObjectMeta": {
                 "searchSourceJSON": json.dumps(
-                    {"query": {"language": "kuery", "query": NETWORK_KQL}, "filter": []}
+                    {
+                        "query": {
+                            "language": "kuery",
+                            "query": f'service.name: "network-controller"',
+                        },
+                        "filter": [],
+                    }
                 )
             },
+            "optionsJSON": json.dumps({"hidePanelTitles": False, "useMargins": True}),
             "panelsJSON": json.dumps(panels),
             "refreshInterval": {"pause": False, "value": 30000},
             "timeFrom": "now-7d",
             "timeRestore": True,
             "timeTo": "now",
             "title": "Adaptive Networks NOC",
-            "optionsJSON": json.dumps({"hidePanelTitles": False, "useMargins": True}),
             "version": 1,
         },
         "coreMigrationVersion": "8.8.0",
-        "id": "adaptive-networks-noc",
+        "id": DASHBOARD_ID,
         "managed": False,
-        "references": refs,
+        "references": references,
         "type": "dashboard",
         "typeMigrationVersion": "10.3.0",
     }
-
-    return json.dumps(dashboard, separators=(",", ":")) + "\n"
+    lines.append(json.dumps(dashboard, separators=(",", ":")))
+    return "\n".join(lines) + "\n"
 
 
 if __name__ == "__main__":
