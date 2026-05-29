@@ -49,6 +49,51 @@ kb_curl -X POST "${KIBANA_URL}/api/streams/logs.otel/_fork" -d '{
 }' >/dev/null 2>&1 || log "Stream fork may already exist (continuing)"
 
 # ── 3. Workflows ──────────────────────────────────────────────────────────────
+log "Cleaning up previous Adaptive Networks workflows..."
+python3 <<'PY'
+import json, os, urllib.request
+
+kibana = os.environ["KIBANA_URL"]
+api_key = os.environ["ES_API_KEY"]
+headers = {
+    "Authorization": f"ApiKey {api_key}",
+    "Content-Type": "application/json",
+    "kbn-xsrf": "true",
+}
+
+def list_workflows():
+    for path in ("/api/workflows",):
+        req = urllib.request.Request(f"{kibana}{path}", headers=headers)
+        try:
+            with urllib.request.urlopen(req) as resp:
+                data = json.load(resp)
+                return data if isinstance(data, list) else data.get("results", data.get("items", []))
+        except Exception:
+            continue
+    req = urllib.request.Request(
+        f"{kibana}/api/workflows/search",
+        data=json.dumps({"page": 1, "size": 100}).encode(),
+        headers=headers,
+        method="POST",
+    )
+    with urllib.request.urlopen(req) as resp:
+        data = json.load(resp)
+        return data.get("results", data.get("items", []))
+
+for item in list_workflows():
+    name = item.get("name", "")
+    wf_id = item.get("id", "")
+    if wf_id and "Adaptive Networks" in name:
+        for path in (f"/api/workflows/workflow/{wf_id}", f"/api/workflows/{wf_id}"):
+            req = urllib.request.Request(f"{kibana}{path}", headers=headers, method="DELETE")
+            try:
+                urllib.request.urlopen(req)
+                print(f"  deleted workflow: {wf_id}")
+                break
+            except Exception:
+                pass
+PY
+
 deploy_workflow() {
   local yaml_file="$1"
   local yaml_content
@@ -87,7 +132,7 @@ log "  network_incident_response: ${INCIDENT_WF_ID}"
 # ── 4. Agent Builder tools ────────────────────────────────────────────────────
 log "Deploying Agent Builder tools..."
 python3 <<PY
-import json, os, urllib.request
+import json, os, sys, urllib.request, urllib.error
 
 kibana = os.environ["KIBANA_URL"]
 api_key = os.environ["ES_API_KEY"]
@@ -97,10 +142,51 @@ headers = {
     "kbn-xsrf": "true",
 }
 
+def upsert_tool(tool):
+    tid = tool["id"]
+    put_body = {
+        "description": tool["description"],
+        "configuration": tool["configuration"],
+    }
+    req = urllib.request.Request(
+        f"{kibana}/api/agent_builder/tools/{tid}",
+        data=json.dumps(put_body).encode(),
+        headers=headers,
+        method="PUT",
+    )
+    try:
+        with urllib.request.urlopen(req) as resp:
+            print(f"  tool {tid}: updated (HTTP {resp.status})")
+            return
+    except urllib.error.HTTPError as e:
+        if e.code not in (404, 405):
+            body = e.read().decode()
+            print(f"  tool {tid}: PUT failed HTTP {e.code}: {body}", file=sys.stderr)
+            raise
+
+    create_body = {
+        "id": tid,
+        "type": tool["type"],
+        "description": tool["description"],
+        "configuration": tool["configuration"],
+    }
+    req = urllib.request.Request(
+        f"{kibana}/api/agent_builder/tools",
+        data=json.dumps(create_body).encode(),
+        headers=headers,
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req) as resp:
+            print(f"  tool {tid}: created (HTTP {resp.status})")
+    except urllib.error.HTTPError as e:
+        body = e.read().decode()
+        print(f"  tool {tid}: POST failed HTTP {e.code}: {body}", file=sys.stderr)
+        raise
+
 with open("${ROOT}/elastic_config/tools/agent_tools.json") as f:
     tools = json.load(f)
 
-# Add remediation workflow tool after workflows are deployed
 tools.append({
     "id": "adaptive_networks_remediation_action",
     "type": "workflow",
@@ -109,25 +195,7 @@ tools.append({
 })
 
 for tool in tools:
-    tid = tool["id"]
-    req = urllib.request.Request(
-        f"{kibana}/api/agent_builder/tools/{tid}",
-        headers=headers,
-        method="DELETE",
-    )
-    try:
-        urllib.request.urlopen(req)
-    except Exception:
-        pass
-
-    req = urllib.request.Request(
-        f"{kibana}/api/agent_builder/tools",
-        data=json.dumps(tool).encode(),
-        headers=headers,
-        method="POST",
-    )
-    with urllib.request.urlopen(req) as resp:
-        print(f"  tool {tid}: HTTP {resp.status}")
+    upsert_tool(tool)
 PY
 
 # ── 5. Agent ──────────────────────────────────────────────────────────────────
