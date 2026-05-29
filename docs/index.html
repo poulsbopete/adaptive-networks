@@ -9,9 +9,10 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/theme/black.css" />
   <link rel="stylesheet" href="css/theme.css" />
 </head>
-<body>
+<body class="reveal-viewport">
   <div class="reveal">
     <div class="slides">
 
@@ -34,7 +35,7 @@
       </section>
 
       <!-- Agenda -->
-      <section>
+      <section data-background-color="#0b1120">
         <h2>Agenda</h2>
         <div class="grid-2">
           <ul>
@@ -56,7 +57,7 @@
         <p>Network operations teams need faster triage without risky automation on core routing.</p>
       </section>
 
-      <section>
+      <section data-background-color="#0b1120">
         <div class="grid-2">
           <div>
             <h3>Network teams face</h3>
@@ -85,7 +86,7 @@
         <p>OTLP simulator → alerts → Kibana Workflow → Agent Builder → remediation poller.</p>
       </section>
 
-      <section>
+      <section data-background-color="#0b1120">
         <div class="diagram">┌─────────────────┐     OTLP      ┌──────────────────────────────────┐
 │ Network         │──────────────▶│ otel-demo (Elastic Cloud)        │
 │ Simulator       │               │  logs.otel.adaptive-networks     │
@@ -106,7 +107,7 @@
       </section>
 
       <!-- Components -->
-      <section>
+      <section data-background-color="#0b1120">
         <h2>Platform Components</h2>
         <div class="grid-3">
           <div class="card">
@@ -137,7 +138,7 @@
       </section>
 
       <!-- Fault table -->
-      <section>
+      <section data-background-color="#0b1120">
         <h2>Fault Catalog</h2>
         <table>
           <thead>
@@ -186,7 +187,7 @@
       </section>
 
       <!-- Severity model -->
-      <section>
+      <section data-background-color="#0b1120">
         <h2>Severity Model</h2>
         <div class="grid-2">
           <div class="card">
@@ -215,7 +216,7 @@
       </section>
 
       <!-- Workflow detail -->
-      <section>
+      <section data-background-color="#0b1120">
         <h2>Incident Response Workflow</h2>
         <ol style="font-size:0.6em">
           <li><strong>Enrich</strong> — ES|QL pull of recent fault logs from <code>logs.otel.adaptive-networks*</code></li>
@@ -232,7 +233,7 @@
       </section>
 
       <!-- Agent -->
-      <section>
+      <section data-background-color="#0b1120">
         <h2>Agent Builder</h2>
         <p style="font-size:0.6em"><strong>Agent ID:</strong> <code>adaptive-networks-analyst</code></p>
         <div class="grid-2" style="margin-top:0.75em">
@@ -264,7 +265,7 @@
         <p>~10 minutes — low-risk auto path, then high-risk HITL path.</p>
       </section>
 
-      <section>
+      <section data-background-color="#0b1120">
         <table>
           <thead>
             <tr><th>Step</th><th>Action</th><th>Expected outcome</th></tr>
@@ -300,7 +301,7 @@
       </section>
 
       <!-- Live links -->
-      <section>
+      <section data-background-color="#0b1120">
         <h2>Live Environment</h2>
         <ul class="link-list">
           <li><a href="https://otel-demo-a5630c.kb.us-east-1.aws.elastic.cloud/" target="_blank" rel="noopener">Kibana — otel-demo</a></li>
@@ -315,7 +316,7 @@
       </section>
 
       <!-- Getting started -->
-      <section>
+      <section data-background-color="#0b1120">
         <h2>Getting Started</h2>
         <div class="diagram">git clone git@github.com:poulsbopete/adaptive-networks.git
 cd adaptive-networks

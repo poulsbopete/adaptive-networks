@@ -21,14 +21,32 @@
   --title-gradient: linear-gradient(120deg, #f8fafc 0%, #cbd5e1 45%, #7dd3fc 100%);
 }
 
+/* Force dark deck — Reveal's base CSS defaults to a light slide background */
+html,
+body,
+.reveal-viewport,
+.reveal,
+.reveal .slides,
+.reveal .backgrounds,
+.reveal .slide-background {
+  background-color: var(--r-background-color) !important;
+}
+
 .reveal {
   font-size: 28px;
   font-weight: 400;
-  color: var(--r-main-color);
+  color: var(--r-main-color) !important;
 }
 
 .reveal .slides section {
   height: 100%;
+  background-color: var(--r-background-color) !important;
+  color: var(--r-main-color) !important;
+  padding: 0.5em 0.2em;
+}
+
+.reveal .slides section.section-slide {
+  background-color: #0f172a !important;
 }
 
 .reveal .slides {
@@ -67,8 +85,10 @@
 }
 
 .reveal p,
-.reveal li {
-  color: var(--r-main-color);
+.reveal li,
+.reveal ol,
+.reveal ul {
+  color: #e2e8f0 !important;
 }
 
 .reveal .subtitle {
